@@ -1,0 +1,331 @@
+---
+title: "Eda"
+author: "Bugra Duman"
+date: "2/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidyr)
+library(tm)
+library(pander)
+library(tidytext)
+```
+
+## Drugs topic modeling
+
+Our dataset comes with train and test as two files, lets bind them and check if we have NAs.
+
+```{r Read}
+drug_train <- read_tsv('drugLibTrain_raw.tsv')
+drug_test <- read_tsv('drugLibTest_raw.tsv')
+drug<- rbind(drug_train,drug_test)
+drug <- drug %>% select(-X1) %>% as.data.frame()
+
+na_count <-sapply(drug, function(y) sum(length(which(is.na(y)))))
+
+
+na_count <- data.frame(na_count)
+
+```
+
+## EDA
+
+In order to understand the data better lets look what we have, the dataset consist of reviews for different drugs in detailed. Users of the drug wrote the benefits review,side effects review and overall review which they comment about drug. Besides these comments we have the rating and effectiveness columns about drugs, below you can see the distribution of ratings ,effectiveness and side effects.
+
+```{r glimpse, echo=FALSE}
+
+glimpse(drug)
+pander(table(drug$rating))
+
+pander(table(drug$effectiveness))
+
+pander(table(drug$sideEffects))
+
+```
+
+```{r}
+drug_condition <- drug %>%
+  group_by(condition,urlDrugName) %>% 
+  unique() %>% count() %>% 
+  arrange(desc(n)) %>% head(20)
+
+ggplot(drug_condition,aes(x=reorder(condition,-(n)),y=n))  +
+  geom_bar(width=.5,stat = "identity",na.rm = TRUE) +
+  theme_bw() +
+  coord_flip()
+```
+
+This plots shows the number of conditions for drugs, apparently most of the reviews are about depression and acne. Lets see if we are going to find these topics by reviews.
+
+```{r}
+Score_mean <- drug %>%  drop_na() %>% 
+  group_by(effectiveness) %>% 
+  summarise(Overall_Mean=mean(rating)) %>% 
+  arrange(desc(Overall_Mean)) 
+
+ggplot(Score_mean,aes(x=reorder(effectiveness,-(Overall_Mean)),y=Overall_Mean))  +
+  geom_bar(width=.5,stat = "identity",na.rm = TRUE) +
+  theme_bw()
+```
+
+Here we can see the mean of ratings according to effectiveness, as we can see the drugs with moderate effects got a 5 out of 10 which we can expect.
+
+```{r warning=FALSE}
+library(ggwordcloud)
+
+worldcloud <- drug %>% 
+  unnest_tokens(word,commentsReview) %>% 
+  anti_join(stop_words) %>% 
+  inner_join(get_sentiments("bing")) %>%
+  count(sentiment,word,sort=T) %>% 
+  top_n(250)
+
+
+  
+  
+worldcloud %>% 
+reshape2::acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  wordcloud::comparison.cloud(colors = c("gray20", "chartreuse"),
+                   max.words = 250)
+
+
+```
+
+Most frequent words according the their sentiments as we can see reviews mostly has negative words.
+
+```{r TF}
+drug1 <- drug %>% select(urlDrugName,rating,effectiveness,condition,commentsReview) %>% 
+  unnest_tokens(word,commentsReview) %>% 
+  group_by(effectiveness) %>% 
+  count(word,sort = T) %>% 
+  ungroup()
+
+
+a<-drug1 %>% bind_tf_idf(word,effectiveness,n) %>% 
+  arrange(desc(tf_idf)) %>% 
+  group_by(effectiveness) %>% 
+  top_n(20) %>% 
+  ungroup()
+```
+
+The idea of tf-idf is to find the important words for the content of each document by decreasing the weight for commonly used words and increasing the weight for words that are not used very much in a collection or corpus of documents. Calculating tf-idf attempts to find the words that are important (i.e., common) in a text, but not *too* common. We have created the data to use tf-idf below you can see the representation of words are mostly used during reviews grouped by effectiveness.
+
+```{r plot1}
+a <- drug1 %>% bind_tf_idf(word,effectiveness,n) %>% 
+  arrange(desc(tf_idf)) %>% 
+  group_by(effectiveness) %>% 
+  top_n(20) %>% 
+  ungroup()
+  
+ #MAybe
+ #ggplot(data = a %>% filter(tf_idf >= .0000000001) , aes(x=word , y = tf_idf))+
+    #geom_bar(stat='identity',width =.5)+coord_flip()+
+    #facet_wrap(.~effectiveness,scales = "free")+
+    #theme_bw()
+
+
+
+plot_effect <- ggplot(data = a %>% filter(n >= 4), aes(x=word , y = n))+
+    geom_bar(stat='identity',width =.5)+coord_flip()+
+    facet_wrap(.~effectiveness,scales = "free")+
+    theme_bw()
+plot_effect   
+```
+
+```{r ngrams}
+
+drug_bigrams <- drug %>% select(urlDrugName,rating,effectiveness,condition,commentsReview) %>% 
+  unnest_tokens(bigram, commentsReview,token = 'ngrams', n =2) 
+nums <- drug_bigrams %>% filter(str_detect(bigram, "^[0-9]")) %>% select(bigram) %>% unique()
+
+drug_bigrams <- drug_bigrams %>% 
+  anti_join(nums,by='bigram')
+
+drug_sep <- drug_bigrams %>% 
+  separate(bigram, into = c("word1", "word2"), sep = " ")
+
+drug_bigrams <- drug_bigrams %>%
+  separate(bigram, into = c("word1", "word2"), sep = " ")%>% 
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word) %>% 
+  unite(bigram,c(word1,word2), sep = " ")
+
+
+
+
+
+```
+
+We did some cleaning and creating bigrams to use later on our analysis.
+
+```{r sentiment bigram}
+
+not_words <- drug_sep %>%
+  filter(word1 == "not") %>% 
+  inner_join(get_sentiments("afinn"), by = c(word2 = "word")) %>%
+  count(word1, word2, value, sort = TRUE)
+
+not_words %>% mutate(contribution = n * value,
+         sign = if_else(value > 0, "postive", "negative")) %>%
+  top_n(20, abs(contribution)) %>%
+  mutate(word2 = fct_reorder(word2, contribution)) %>%
+  ggplot(aes(y = word2, x = contribution, fill = sign)) +
+  geom_col() +
+  labs(y = 'Words preceded by \"not\"',
+       x = "Sentiment value * number of occurrences")
+
+```
+
+During reviews people might use positive words to express the negative sides of the service or product, in our dataset people used lots if positive words after `not` to express the negative sign.
+
+```{r negation_words}
+
+
+negation_words <- c("not", "no", "never", "without")
+
+negated_words <- drug_sep %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(get_sentiments("afinn"), by = c(word2 = "word")) %>%
+  count(word1, word2, value, sort = TRUE)
+
+negated_words %>%
+  mutate(contribution = n * value,
+         sign = if_else(value > 0, "postive", "negative")) %>%
+  group_by(word1) %>% 
+  top_n(20, abs(contribution)) %>%
+  ungroup() %>%
+  ggplot(aes(y = reorder_within(word2, contribution, word1), 
+             x = contribution, 
+             fill = sign)) +
+  geom_col() + 
+  scale_y_reordered() + 
+  facet_wrap(~ word1, scales = "free") + 
+  labs(y = 'Words proceeded by a negation term',
+       x = "Sentiment value * number of occurrences",
+       title = "The most common positive or negative words to follow negations such as 'never', 'no', 'not', and 'without'")
+
+
+
+
+```
+
+Here all negated words in one plot, shows the importance if analyzing these words to understand better the reviews.
+
+```{r LDA}
+
+library(topicmodels)
+
+drug_tidy <- drug %>% select(urlDrugName,rating,effectiveness,condition,commentsReview)
+
+drug_tidy <- drug_tidy %>% 
+  unnest_tokens(word,commentsReview) 
+  
+
+nums1 <- drug_tidy %>% filter(str_detect(word, "^[0-9]")) %>% select(word) %>% unique()
+
+
+drug_m <- drug_tidy %>% 
+  filter(!word %in% stop_words$word) %>% 
+  anti_join(nums1) %>% 
+  count(word,urlDrugName) %>% 
+  cast_dtm(urlDrugName,word,n) %>% 
+  as.matrix()
+
+
+
+drug_lda<- LDA(drug_m,
+               k=2,
+               method = "Gibbs",
+               control = list(seed=42)
+               )
+
+
+topics_drug <- drug_lda %>% 
+  tidy(matrix='beta') %>% 
+  arrange(desc(beta))
+
+word_prob<- topics_drug %>% 
+  group_by(topic) %>% 
+  top_n(15,beta) %>% 
+  ungroup() %>% 
+  mutate(term2= fct_reorder(term,beta))
+
+
+ggplot(
+  word_prob,
+  aes(term2, beta, fill=as.factor(topic))
+  ) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+
+
+
+drug_lda2 <- LDA(
+  drug_m,
+  k=3,
+  method="Gibbs",
+  control = list(seed=42)
+)
+
+topics_drug2 <- drug_lda2 %>% 
+  tidy(matrix='beta') %>% 
+  arrange(desc(beta))
+
+word_prob2<- topics_drug2 %>% 
+  group_by(topic) %>% 
+  top_n(15,beta) %>% 
+  ungroup() %>% 
+  mutate(term2= fct_reorder(term,beta))
+
+
+ggplot(
+  word_prob2,
+  aes(term2, beta, fill=as.factor(topic))
+  ) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+
+
+drug_lda3 <- LDA(
+  drug_m,
+  k=4,
+  method="Gibbs",
+  control = list(seed=42)
+)
+
+topics_drug3 <- drug_lda3 %>% 
+  tidy(matrix='beta') %>% 
+  arrange(desc(beta))
+
+word_prob3<- topics_drug3 %>% 
+  group_by(topic) %>% 
+  top_n(15,beta) %>% 
+  ungroup() %>% 
+  mutate(term2= fct_reorder(term,beta))
+
+
+ggplot(
+  word_prob3,
+  aes(term2, beta, fill=as.factor(topic))
+  ) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+
+
+
+
+
+
+
+```
+
+We have used LDA to create to find out topics in reviews when we set neighbor parameters to 2, we can assume these two topic could be "depression " and "cream". on second plot we have updated k to 3 to find more topics and now we have new topic besides depression, cream which might be a drug related birth control. Lastly, when we tried to find 4th topic in reviews, the words became mostly same so we can say that in these dataset we have reviews about mostly depression, acne or skin and birth control drugs.
