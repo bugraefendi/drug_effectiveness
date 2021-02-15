@@ -16,8 +16,11 @@ library(tidytext)
 
 ## Drugs topic modeling
 
+<<<<<<< HEAD
 Our dataset comes with train and test as two files, lets bind them and check if we have NAs.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r Read}
 drug_train <- read_tsv('drugLibTrain_raw.tsv')
 drug_test <- read_tsv('drugLibTest_raw.tsv')
@@ -33,8 +36,11 @@ na_count <- data.frame(na_count)
 
 ## EDA
 
+<<<<<<< HEAD
 In order to understand the data better lets look what we have, the dataset consist of reviews for different drugs in detailed. Users of the drug wrote the benefits review,side effects review and overall review which they comment about drug. Besides these comments we have the rating and effectiveness columns about drugs, below you can see the distribution of ratings ,effectiveness and side effects.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r glimpse, echo=FALSE}
 
 glimpse(drug)
@@ -58,8 +64,11 @@ ggplot(drug_condition,aes(x=reorder(condition,-(n)),y=n))  +
   coord_flip()
 ```
 
+<<<<<<< HEAD
 This plots shows the number of conditions for drugs, apparently most of the reviews are about depression and acne. Lets see if we are going to find these topics by reviews.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r}
 Score_mean <- drug %>%  drop_na() %>% 
   group_by(effectiveness) %>% 
@@ -71,9 +80,13 @@ ggplot(Score_mean,aes(x=reorder(effectiveness,-(Overall_Mean)),y=Overall_Mean)) 
   theme_bw()
 ```
 
+<<<<<<< HEAD
 Here we can see the mean of ratings according to effectiveness, as we can see the drugs with moderate effects got a 5 out of 10 which we can expect.
 
 ```{r warning=FALSE}
+=======
+```{r}
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 library(ggwordcloud)
 
 worldcloud <- drug %>% 
@@ -83,19 +96,33 @@ worldcloud <- drug %>%
   count(sentiment,word,sort=T) %>% 
   top_n(250)
 
+<<<<<<< HEAD
 
+=======
+worldcloud %>% 
+  ggplot()+
+  geom_text_wordcloud_area(aes(label=word,size=n),shape = "star")+
+  scale_size_area(max_size = 15)
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
   
   
 worldcloud %>% 
 reshape2::acast(word ~ sentiment, value.var = "n", fill = 0) %>%
   wordcloud::comparison.cloud(colors = c("gray20", "chartreuse"),
+<<<<<<< HEAD
                    max.words = 250)
+=======
+                   max.words = 100)
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 
 
 ```
 
+<<<<<<< HEAD
 Most frequent words according the their sentiments as we can see reviews mostly has negative words.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r TF}
 drug1 <- drug %>% select(urlDrugName,rating,effectiveness,condition,commentsReview) %>% 
   unnest_tokens(word,commentsReview) %>% 
@@ -111,8 +138,11 @@ a<-drug1 %>% bind_tf_idf(word,effectiveness,n) %>%
   ungroup()
 ```
 
+<<<<<<< HEAD
 The idea of tf-idf is to find the important words for the content of each document by decreasing the weight for commonly used words and increasing the weight for words that are not used very much in a collection or corpus of documents. Calculating tf-idf attempts to find the words that are important (i.e., common) in a text, but not *too* common. We have created the data to use tf-idf below you can see the representation of words are mostly used during reviews grouped by effectiveness.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r plot1}
 a <- drug1 %>% bind_tf_idf(word,effectiveness,n) %>% 
   arrange(desc(tf_idf)) %>% 
@@ -122,9 +152,15 @@ a <- drug1 %>% bind_tf_idf(word,effectiveness,n) %>%
   
  #MAybe
  #ggplot(data = a %>% filter(tf_idf >= .0000000001) , aes(x=word , y = tf_idf))+
+<<<<<<< HEAD
     #geom_bar(stat='identity',width =.5)+coord_flip()+
     #facet_wrap(.~effectiveness,scales = "free")+
     #theme_bw()
+=======
+    geom_bar(stat='identity',width =.5)+coord_flip()+
+    facet_wrap(.~effectiveness,scales = "free")+
+    theme_bw()
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 
 
 
@@ -132,7 +168,11 @@ plot_effect <- ggplot(data = a %>% filter(n >= 4), aes(x=word , y = n))+
     geom_bar(stat='identity',width =.5)+coord_flip()+
     facet_wrap(.~effectiveness,scales = "free")+
     theme_bw()
+<<<<<<< HEAD
 plot_effect   
+=======
+    
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```
 
 ```{r ngrams}
@@ -155,12 +195,19 @@ drug_bigrams <- drug_bigrams %>%
 
 
 
+<<<<<<< HEAD
+=======
+drug_bigrams %>%  count(bigram, sort = TRUE)
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 
 
 ```
 
+<<<<<<< HEAD
 We did some cleaning and creating bigrams to use later on our analysis.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r sentiment bigram}
 
 not_words <- drug_sep %>%
@@ -179,8 +226,11 @@ not_words %>% mutate(contribution = n * value,
 
 ```
 
+<<<<<<< HEAD
 During reviews people might use positive words to express the negative sides of the service or product, in our dataset people used lots if positive words after `not` to express the negative sign.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r negation_words}
 
 
@@ -212,8 +262,11 @@ negated_words %>%
 
 ```
 
+<<<<<<< HEAD
 Here all negated words in one plot, shows the importance if analyzing these words to understand better the reviews.
 
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
 ```{r LDA}
 
 library(topicmodels)
@@ -327,5 +380,8 @@ ggplot(
 
 
 ```
+<<<<<<< HEAD
 
 We have used LDA to create to find out topics in reviews when we set neighbor parameters to 2, we can assume these two topic could be "depression " and "cream". on second plot we have updated k to 3 to find more topics and now we have new topic besides depression, cream which might be a drug related birth control. Lastly, when we tried to find 4th topic in reviews, the words became mostly same so we can say that in these dataset we have reviews about mostly depression, acne or skin and birth control drugs.
+=======
+>>>>>>> 19b504407b69398bf989f0cc9a6d97fa5e0ea5a8
